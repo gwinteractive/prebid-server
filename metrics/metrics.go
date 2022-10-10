@@ -57,6 +57,7 @@ const (
 	CategoryDataType StoredDataType = "category"
 	RequestDataType  StoredDataType = "request"
 	VideoDataType    StoredDataType = "video"
+	ResponseDataType StoredDataType = "response"
 )
 
 func StoredDataTypes() []StoredDataType {
@@ -66,6 +67,7 @@ func StoredDataTypes() []StoredDataType {
 		CategoryDataType,
 		RequestDataType,
 		VideoDataType,
+		ResponseDataType,
 	}
 }
 
@@ -200,12 +202,13 @@ func CookieTypes() []CookieFlag {
 
 // Request/return status
 const (
-	RequestStatusOK           RequestStatus = "ok"
-	RequestStatusBadInput     RequestStatus = "badinput"
-	RequestStatusErr          RequestStatus = "err"
-	RequestStatusNetworkErr   RequestStatus = "networkerr"
-	RequestStatusBlacklisted  RequestStatus = "blacklistedacctorapp"
-	RequestStatusQueueTimeout RequestStatus = "queuetimeout"
+	RequestStatusOK               RequestStatus = "ok"
+	RequestStatusBadInput         RequestStatus = "badinput"
+	RequestStatusErr              RequestStatus = "err"
+	RequestStatusNetworkErr       RequestStatus = "networkerr"
+	RequestStatusBlacklisted      RequestStatus = "blacklistedacctorapp"
+	RequestStatusQueueTimeout     RequestStatus = "queuetimeout"
+	RequestStatusAccountConfigErr RequestStatus = "acctconfigerr"
 )
 
 func RequestStatuses() []RequestStatus {
@@ -216,6 +219,7 @@ func RequestStatuses() []RequestStatus {
 		RequestStatusNetworkErr,
 		RequestStatusBlacklisted,
 		RequestStatusQueueTimeout,
+		RequestStatusAccountConfigErr,
 	}
 }
 
@@ -238,6 +242,7 @@ const (
 	AdapterErrorBadServerResponse   AdapterError = "badserverresponse"
 	AdapterErrorTimeout             AdapterError = "timeout"
 	AdapterErrorFailedToRequestBids AdapterError = "failedtorequestbid"
+	AdapterErrorValidation          AdapterError = "validation"
 	AdapterErrorUnknown             AdapterError = "unknown_error"
 )
 
@@ -247,6 +252,7 @@ func AdapterErrors() []AdapterError {
 		AdapterErrorBadServerResponse,
 		AdapterErrorTimeout,
 		AdapterErrorFailedToRequestBids,
+		AdapterErrorValidation,
 		AdapterErrorUnknown,
 	}
 }
@@ -264,33 +270,6 @@ func CacheResults() []CacheResult {
 	return []CacheResult{
 		CacheHit,
 		CacheMiss,
-	}
-}
-
-// UserLabels : Labels for /setuid endpoint
-type UserLabels struct {
-	Action RequestAction
-	Bidder openrtb_ext.BidderName
-}
-
-// RequestAction : The setuid request result
-type RequestAction string
-
-// /setuid action labels
-const (
-	RequestActionSet    RequestAction = "set"
-	RequestActionOptOut RequestAction = "opt_out"
-	RequestActionGDPR   RequestAction = "gdpr"
-	RequestActionErr    RequestAction = "err"
-)
-
-// RequestActions returns possible setuid action labels
-func RequestActions() []RequestAction {
-	return []RequestAction{
-		RequestActionSet,
-		RequestActionOptOut,
-		RequestActionGDPR,
-		RequestActionErr,
 	}
 }
 
@@ -319,6 +298,97 @@ func TCFVersionToValue(version int) TCFVersionValue {
 	return TCFVersionErr
 }
 
+// CookieSyncStatus is a status code resulting from a call to the /cookie_sync endpoint.
+type CookieSyncStatus string
+
+const (
+	CookieSyncOK                     CookieSyncStatus = "ok"
+	CookieSyncBadRequest             CookieSyncStatus = "bad_request"
+	CookieSyncOptOut                 CookieSyncStatus = "opt_out"
+	CookieSyncGDPRHostCookieBlocked  CookieSyncStatus = "gdpr_blocked_host_cookie"
+	CookieSyncAccountBlocked         CookieSyncStatus = "acct_blocked"
+	CookieSyncAccountConfigMalformed CookieSyncStatus = "acct_config_malformed"
+	CookieSyncAccountInvalid         CookieSyncStatus = "acct_invalid"
+)
+
+// CookieSyncStatuses returns possible cookie sync statuses.
+func CookieSyncStatuses() []CookieSyncStatus {
+	return []CookieSyncStatus{
+		CookieSyncOK,
+		CookieSyncBadRequest,
+		CookieSyncOptOut,
+		CookieSyncGDPRHostCookieBlocked,
+		CookieSyncAccountBlocked,
+		CookieSyncAccountConfigMalformed,
+		CookieSyncAccountInvalid,
+	}
+}
+
+// SyncerCookieSyncStatus is a status code from an invocation of a syncer resulting from a call to the /cookie_sync endpoint.
+type SyncerCookieSyncStatus string
+
+const (
+	SyncerCookieSyncOK               SyncerCookieSyncStatus = "ok"
+	SyncerCookieSyncPrivacyBlocked   SyncerCookieSyncStatus = "privacy_blocked"
+	SyncerCookieSyncAlreadySynced    SyncerCookieSyncStatus = "already_synced"
+	SyncerCookieSyncTypeNotSupported SyncerCookieSyncStatus = "type_not_supported"
+)
+
+// SyncerRequestStatuses returns possible syncer statuses.
+func SyncerRequestStatuses() []SyncerCookieSyncStatus {
+	return []SyncerCookieSyncStatus{
+		SyncerCookieSyncOK,
+		SyncerCookieSyncPrivacyBlocked,
+		SyncerCookieSyncAlreadySynced,
+		SyncerCookieSyncTypeNotSupported,
+	}
+}
+
+// SetUidStatus is a status code resulting from a call to the /setuid endpoint.
+type SetUidStatus string
+
+// /setuid action labels
+const (
+	SetUidOK                     SetUidStatus = "ok"
+	SetUidBadRequest             SetUidStatus = "bad_request"
+	SetUidOptOut                 SetUidStatus = "opt_out"
+	SetUidGDPRHostCookieBlocked  SetUidStatus = "gdpr_blocked_host_cookie"
+	SetUidAccountBlocked         SetUidStatus = "acct_blocked"
+	SetUidAccountConfigMalformed SetUidStatus = "acct_config_malformed"
+	SetUidAccountInvalid         SetUidStatus = "acct_invalid"
+	SetUidSyncerUnknown          SetUidStatus = "syncer_unknown"
+)
+
+// SetUidStatuses returns possible setuid statuses.
+func SetUidStatuses() []SetUidStatus {
+	return []SetUidStatus{
+		SetUidOK,
+		SetUidBadRequest,
+		SetUidOptOut,
+		SetUidGDPRHostCookieBlocked,
+		SetUidAccountBlocked,
+		SetUidAccountConfigMalformed,
+		SetUidAccountInvalid,
+		SetUidSyncerUnknown,
+	}
+}
+
+// SyncerSetUidStatus is a status code from an invocation of a syncer resulting from a call to the /setuid endpoint.
+type SyncerSetUidStatus string
+
+const (
+	SyncerSetUidOK      SyncerSetUidStatus = "ok"
+	SyncerSetUidCleared SyncerSetUidStatus = "cleared"
+)
+
+// SyncerSetUidStatuses returns possible syncer set statuses.
+func SyncerSetUidStatuses() []SyncerSetUidStatus {
+	return []SyncerSetUidStatus{
+		SyncerSetUidOK,
+		SyncerSetUidCleared,
+	}
+}
+
 // MetricsEngine is a generic interface to record PBS metrics into the desired backend
 // The first three metrics function fire off once per incoming request, so total metrics
 // will equal the total number of incoming requests. The remaining 5 fire off per outgoing
@@ -330,7 +400,6 @@ type MetricsEngine interface {
 	RecordConnectionClose(success bool)
 	RecordRequest(labels Labels)                           // ignores adapter. only statusOk and statusErr fom status
 	RecordImps(labels ImpLabels)                           // RecordImps across openRTB2 engines that support the 'Native' Imp Type
-	RecordLegacyImps(labels Labels, numImps int)           // RecordImps for the legacy engine
 	RecordRequestTime(labels Labels, length time.Duration) // ignores adapter. only statusOk and statusErr fom status
 	RecordAdapterRequest(labels AdapterLabels)
 	RecordAdapterConnections(adapterName openrtb_ext.BidderName, connWasReused bool, connWaitTime time.Duration)
@@ -342,9 +411,10 @@ type MetricsEngine interface {
 	RecordAdapterBidReceived(labels AdapterLabels, bidType openrtb_ext.BidType, hasAdm bool)
 	RecordAdapterPrice(labels AdapterLabels, cpm float64)
 	RecordAdapterTime(labels AdapterLabels, length time.Duration)
-	RecordCookieSync()
-	RecordAdapterCookieSync(adapter openrtb_ext.BidderName, gdprBlocked bool)
-	RecordUserIDSet(userLabels UserLabels) // Function should verify bidder values
+	RecordCookieSync(status CookieSyncStatus)
+	RecordSyncerRequest(key string, status SyncerCookieSyncStatus)
+	RecordSetUid(status SetUidStatus)
+	RecordSyncerSet(key string, status SyncerSetUidStatus)
 	RecordStoredReqCacheResult(cacheResult CacheResult, inc int)
 	RecordStoredImpCacheResult(cacheResult CacheResult, inc int)
 	RecordAccountCacheResult(cacheResult CacheResult, inc int)
@@ -352,7 +422,11 @@ type MetricsEngine interface {
 	RecordStoredDataError(labels StoredDataLabels)
 	RecordPrebidCacheRequestTime(success bool, length time.Duration)
 	RecordRequestQueueTime(success bool, requestType RequestType, length time.Duration)
-	RecordTimeoutNotice(sucess bool)
+	RecordTimeoutNotice(success bool)
 	RecordRequestPrivacy(privacy PrivacyLabels)
 	RecordAdapterGDPRRequestBlocked(adapterName openrtb_ext.BidderName)
+	RecordDebugRequest(debugEnabled bool, pubId string)
+	RecordStoredResponse(pubId string)
+	RecordAdsCertReq(success bool)
+	RecordAdsCertSignTime(adsCertSignTime time.Duration)
 }

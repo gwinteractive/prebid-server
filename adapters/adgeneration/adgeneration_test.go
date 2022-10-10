@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/adapters/adapterstest"
 	"github.com/prebid/prebid-server/config"
@@ -23,7 +23,7 @@ func TestJsonSamples(t *testing.T) {
 	adapterstest.RunJSONBidderTest(t, "adgenerationtest", bidder)
 }
 
-func TestgetRequestUri(t *testing.T) {
+func TestGetRequestUri(t *testing.T) {
 	bidder, buildErr := Builder(openrtb_ext.BidderAdgeneration, config.Adapter{
 		Endpoint: "https://d.socdm.com/adsv/v1"})
 

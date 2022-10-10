@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
 	"github.com/prebid/prebid-server/config"
 	"github.com/prebid/prebid-server/openrtb_ext"
 	"github.com/prebid/prebid-server/prebid_cache_client"
@@ -553,12 +553,6 @@ type pbsBid struct {
 	Bid     *openrtb2.Bid          `json:"bid"`
 	BidType openrtb_ext.BidType    `json:"bidType"`
 	Bidder  openrtb_ext.BidderName `json:"bidder"`
-}
-
-type cacheComparator struct {
-	freq         int
-	expectedKeys []string
-	actualKeys   []string
 }
 
 type mockCache struct {

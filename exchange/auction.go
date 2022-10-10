@@ -11,7 +11,7 @@ import (
 	"time"
 
 	uuid "github.com/gofrs/uuid"
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
 	"github.com/prebid/prebid-server/config"
 	"github.com/prebid/prebid-server/openrtb_ext"
 	"github.com/prebid/prebid-server/prebid_cache_client"
@@ -309,13 +309,6 @@ func valOrZero(useVal bool, val int) int {
 		return val
 	}
 	return 0
-}
-
-func maybeMake(shouldMake bool, capacity int) []prebid_cache_client.Cacheable {
-	if shouldMake {
-		return make([]prebid_cache_client.Cacheable, 0, capacity)
-	}
-	return nil
 }
 
 func cacheTTL(impTTL int64, bidTTL int64, defTTL int64, buffer int64) (ttl int64) {

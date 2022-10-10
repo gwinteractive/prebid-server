@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/text/currency"
 
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/config"
 	"github.com/prebid/prebid-server/errortypes"
@@ -49,6 +49,10 @@ func (a *YieldlabAdapter) makeEndpointURL(req *openrtb2.BidRequest, params *open
 	q.Set("ts", a.cacheBuster())
 	q.Set("t", a.makeTargetingValues(params))
 
+	if hasFormats, formats := a.makeFormats(req); hasFormats {
+		q.Set("sizes", formats)
+	}
+
 	if req.User != nil && req.User.BuyerUID != "" {
 		q.Set("ids", "ylid:"+req.User.BuyerUID)
 	}
@@ -76,8 +80,10 @@ func (a *YieldlabAdapter) makeEndpointURL(req *openrtb2.BidRequest, params *open
 	if err != nil {
 		return "", err
 	}
-	if gdpr != "" && consent != "" {
+	if gdpr != "" {
 		q.Set("gdpr", gdpr)
+	}
+	if consent != "" {
 		q.Set("consent", consent)
 	}
 
@@ -86,18 +92,22 @@ func (a *YieldlabAdapter) makeEndpointURL(req *openrtb2.BidRequest, params *open
 	return uri.String(), nil
 }
 
-func (a *YieldlabAdapter) getGDPR(request *openrtb2.BidRequest) (string, string, error) {
-	gdpr := ""
-	var extRegs openrtb_ext.ExtRegs
-	if request.Regs != nil {
-		if err := json.Unmarshal(request.Regs.Ext, &extRegs); err != nil {
-			return "", "", fmt.Errorf("failed to parse ExtRegs in Yieldlab GDPR check: %v", err)
+func (a *YieldlabAdapter) makeFormats(req *openrtb2.BidRequest) (bool, string) {
+	var formatsPerAdslot []string
+	for _, impression := range req.Imp {
+		if !impIsTypeBannerOnly(impression) {
+			continue
 		}
-		if extRegs.GDPR != nil && (*extRegs.GDPR == 0 || *extRegs.GDPR == 1) {
-			gdpr = strconv.Itoa(int(*extRegs.GDPR))
+
+		adslotID := a.extractAdslotID(impression)
+		for _, format := range impression.Banner.Format {
+			formatsPerAdslot = append(formatsPerAdslot, fmt.Sprintf("%s:%d|%d", adslotID, format.W, format.H))
 		}
 	}
+	return len(formatsPerAdslot) != 0, strings.Join(formatsPerAdslot, ",")
+}
 
+func (a *YieldlabAdapter) getGDPR(request *openrtb2.BidRequest) (string, string, error) {
 	consent := ""
 	if request.User != nil && request.User.Ext != nil {
 		var extUser openrtb_ext.ExtUser
@@ -105,6 +115,16 @@ func (a *YieldlabAdapter) getGDPR(request *openrtb2.BidRequest) (string, string,
 			return "", "", fmt.Errorf("failed to parse ExtUser in Yieldlab GDPR check: %v", err)
 		}
 		consent = extUser.Consent
+	}
+
+	gdpr := ""
+	var extRegs openrtb_ext.ExtRegs
+	if request.Regs != nil {
+		if err := json.Unmarshal(request.Regs.Ext, &extRegs); err == nil {
+			if extRegs.GDPR != nil && (*extRegs.GDPR == 0 || *extRegs.GDPR == 1) {
+				gdpr = strconv.Itoa(int(*extRegs.GDPR))
+			}
+		}
 	}
 
 	return gdpr, consent, nil
@@ -212,7 +232,15 @@ func (a *YieldlabAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externa
 		Bids:     []*adapters.TypedBid{},
 	}
 
-	for i, bid := range bids {
+	adslotToImpMap := make(map[string]*openrtb2.Imp)
+	for i := 0; i < len(internalRequest.Imp); i++ {
+		adslotID := a.extractAdslotID(internalRequest.Imp[i])
+		if internalRequest.Imp[i].Video != nil || internalRequest.Imp[i].Banner != nil {
+			adslotToImpMap[adslotID] = &internalRequest.Imp[i]
+		}
+	}
+
+	for _, bid := range bids {
 		width, height, err := splitSize(bid.Adsize)
 		if err != nil {
 			return nil, []error{err}
@@ -225,33 +253,37 @@ func (a *YieldlabAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externa
 			}
 		}
 
-		var bidType openrtb_ext.BidType
-		responseBid := &openrtb2.Bid{
-			ID:     strconv.FormatUint(bid.ID, 10),
-			Price:  float64(bid.Price) / 100,
-			ImpID:  internalRequest.Imp[i].ID,
-			CrID:   a.makeCreativeID(req, bid),
-			DealID: strconv.FormatUint(bid.Pid, 10),
-			W:      int64(width),
-			H:      int64(height),
-		}
-
-		if internalRequest.Imp[i].Video != nil {
-			bidType = openrtb_ext.BidTypeVideo
-			responseBid.NURL = a.makeAdSourceURL(internalRequest, req, bid)
-
-		} else if internalRequest.Imp[i].Banner != nil {
-			bidType = openrtb_ext.BidTypeBanner
-			responseBid.AdM = a.makeBannerAdSource(internalRequest, req, bid)
-		} else {
-			// Yieldlab adapter currently doesn't support Audio and Native ads
+		if imp, exists := adslotToImpMap[strconv.FormatUint(bid.ID, 10)]; !exists {
 			continue
-		}
+		} else {
+			var bidType openrtb_ext.BidType
+			responseBid := &openrtb2.Bid{
+				ID:     strconv.FormatUint(bid.ID, 10),
+				Price:  float64(bid.Price) / 100,
+				ImpID:  imp.ID,
+				CrID:   a.makeCreativeID(req, bid),
+				DealID: strconv.FormatUint(bid.Pid, 10),
+				W:      int64(width),
+				H:      int64(height),
+			}
 
-		bidderResponse.Bids = append(bidderResponse.Bids, &adapters.TypedBid{
-			BidType: bidType,
-			Bid:     responseBid,
-		})
+			if imp.Video != nil {
+				bidType = openrtb_ext.BidTypeVideo
+				responseBid.NURL = a.makeAdSourceURL(internalRequest, req, bid)
+				responseBid.AdM = a.makeVast(internalRequest, req, bid)
+			} else if imp.Banner != nil {
+				bidType = openrtb_ext.BidTypeBanner
+				responseBid.AdM = a.makeBannerAdSource(internalRequest, req, bid)
+			} else {
+				// Yieldlab adapter currently doesn't support Audio and Native ads
+				continue
+			}
+
+			bidderResponse.Bids = append(bidderResponse.Bids, &adapters.TypedBid{
+				BidType: bidType,
+				Bid:     responseBid,
+			})
+		}
 	}
 
 	return bidderResponse, nil
@@ -259,6 +291,7 @@ func (a *YieldlabAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externa
 
 func (a *YieldlabAdapter) findBidReq(adslotID uint64, params []*openrtb_ext.ExtImpYieldlab) *openrtb_ext.ExtImpYieldlab {
 	slotIdStr := strconv.FormatUint(adslotID, 10)
+
 	for _, p := range params {
 		if p.AdslotID == slotIdStr {
 			return p
@@ -268,8 +301,20 @@ func (a *YieldlabAdapter) findBidReq(adslotID uint64, params []*openrtb_ext.ExtI
 	return nil
 }
 
+func (a *YieldlabAdapter) extractAdslotID(internalRequestImp openrtb2.Imp) string {
+	bidderExt := new(adapters.ExtImpBidder)
+	json.Unmarshal(internalRequestImp.Ext, bidderExt)
+	yieldlabExt := new(openrtb_ext.ExtImpYieldlab)
+	json.Unmarshal(bidderExt.Bidder, yieldlabExt)
+	return yieldlabExt.AdslotID
+}
+
 func (a *YieldlabAdapter) makeBannerAdSource(req *openrtb2.BidRequest, ext *openrtb_ext.ExtImpYieldlab, res *bidResponse) string {
 	return fmt.Sprintf(adSourceBanner, a.makeAdSourceURL(req, ext, res))
+}
+
+func (a *YieldlabAdapter) makeVast(req *openrtb2.BidRequest, ext *openrtb_ext.ExtImpYieldlab, res *bidResponse) string {
+	return fmt.Sprintf(vastMarkup, ext.AdslotID, a.makeAdSourceURL(req, ext, res))
 }
 
 func (a *YieldlabAdapter) makeAdSourceURL(req *openrtb2.BidRequest, ext *openrtb_ext.ExtImpYieldlab, res *bidResponse) string {
@@ -313,4 +358,9 @@ func splitSize(size string) (uint64, uint64, error) {
 
 	return width, height, nil
 
+}
+
+// impIsTypeBannerOnly returns true if impression is only from type banner. Mixed typed with banner would also result in false.
+func impIsTypeBannerOnly(impression openrtb2.Imp) bool {
+	return impression.Banner != nil && impression.Audio == nil && impression.Video == nil && impression.Native == nil
 }

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"text/template"
 
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/config"
 	"github.com/prebid/prebid-server/errortypes"
@@ -17,7 +17,7 @@ import (
 )
 
 type BetweenAdapter struct {
-	EndpointTemplate template.Template
+	EndpointTemplate *template.Template
 }
 
 func (a *BetweenAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters.ExtraRequestInfo) ([]*adapters.RequestData, []error) {
@@ -208,7 +208,7 @@ func Builder(bidderName openrtb_ext.BidderName, config config.Adapter) (adapters
 	}
 
 	bidder := BetweenAdapter{
-		EndpointTemplate: *template,
+		EndpointTemplate: template,
 	}
 	return &bidder, nil
 }
