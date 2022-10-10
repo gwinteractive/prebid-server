@@ -6,6 +6,5 @@ git remote add upstream https://github.com/prebid/prebid-server.git || true
 git pull
 git fetch upstream
 git rebase upstream/master
-git pull
 git push
 git push --tags
