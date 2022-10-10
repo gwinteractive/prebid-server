@@ -27,4 +27,4 @@ image:
 	docker build -t prebid-server .
 
 fork-update:
-	./fork-update.sh
+	./finya/fork-update.sh
