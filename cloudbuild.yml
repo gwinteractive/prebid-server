@@ -1,0 +1,27 @@
+steps:
+    - name: gcr.io/cloud-builders/docker
+      args:
+          - build
+          - '--build-arg'
+          - TEST=false
+          - '--target'
+          - release
+          - '--network'
+          - host
+          - '-t'
+          - 'eu.gcr.io/$PROJECT_ID/prebid-server:latest'
+          - .
+    - name: gcr.io/cloud-builders/docker
+      args:
+          - build
+          - '--build-arg'
+          - TEST=false
+          - '--target'
+          - release
+          - '--network'
+          - host
+          - '-t'
+          - 'eu.gcr.io/$PROJECT_ID/prebid-server:$TAG_NAME'
+          - .
+images:
+    - eu.gcr.io/$PROJECT_ID/prebid-server
