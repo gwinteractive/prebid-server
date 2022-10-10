@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/config"
 	"github.com/prebid/prebid-server/errortypes"
@@ -149,7 +149,7 @@ func preprocess(imp *openrtb2.Imp, reqExt *openxReqExt) error {
 
 	if imp.Video != nil {
 		videoCopy := *imp.Video
-		if bidderExt.Prebid != nil && bidderExt.Prebid.IsRewardedInventory == 1 {
+		if bidderExt.Prebid != nil && bidderExt.Prebid.IsRewardedInventory != nil && *bidderExt.Prebid.IsRewardedInventory == 1 {
 			videoCopy.Ext = json.RawMessage(`{"rewarded":1}`)
 		} else {
 			videoCopy.Ext = nil

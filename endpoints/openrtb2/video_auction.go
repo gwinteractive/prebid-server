@@ -15,28 +15,32 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/gofrs/uuid"
-	"github.com/mxmCherry/openrtb/v15/openrtb2"
-	"github.com/prebid/prebid-server/errortypes"
-	"github.com/prebid/prebid-server/util/iputil"
-
 	"github.com/golang/glog"
 	"github.com/julienschmidt/httprouter"
+	"github.com/mxmCherry/openrtb/v16/openrtb2"
+	jsonpatch "gopkg.in/evanphx/json-patch.v4"
+
 	accountService "github.com/prebid/prebid-server/account"
 	"github.com/prebid/prebid-server/analytics"
 	"github.com/prebid/prebid-server/config"
+	"github.com/prebid/prebid-server/errortypes"
 	"github.com/prebid/prebid-server/exchange"
 	"github.com/prebid/prebid-server/metrics"
 	"github.com/prebid/prebid-server/openrtb_ext"
 	"github.com/prebid/prebid-server/prebid_cache_client"
 	"github.com/prebid/prebid-server/stored_requests"
+	"github.com/prebid/prebid-server/stored_requests/backends/empty_fetcher"
 	"github.com/prebid/prebid-server/usersync"
+	"github.com/prebid/prebid-server/util/iputil"
+	"github.com/prebid/prebid-server/util/uuidutil"
+	"github.com/prebid/prebid-server/version"
 )
 
 var defaultRequestTimeout int64 = 5000
 
 func NewVideoEndpoint(
+	uuidGenerator uuidutil.UUIDGenerator,
 	ex exchange.Exchange,
 	validator openrtb_ext.BidderParamValidator,
 	requestsById stored_requests.Fetcher,
@@ -65,6 +69,7 @@ func NewVideoEndpoint(
 	videoEndpointRegexp := regexp.MustCompile(`[<>]`)
 
 	return httprouter.Handle((&endpointDeps{
+		uuidGenerator,
 		ex,
 		validator,
 		requestsById,
@@ -79,7 +84,8 @@ func NewVideoEndpoint(
 		bidderMap,
 		cache,
 		videoEndpointRegexp,
-		ipValidator}).VideoAuctionEndpoint), nil
+		ipValidator,
+		empty_fetcher.EmptyFetcher{}}).VideoAuctionEndpoint), nil
 }
 
 /*
@@ -147,6 +153,8 @@ func (deps *endpointDeps) VideoAuctionEndpoint(w http.ResponseWriter, r *http.Re
 		deps.metricsEngine.RecordRequestTime(labels, time.Since(start))
 		deps.analytics.LogVideoObject(&vo)
 	}()
+
+	w.Header().Set("X-Prebid", version.BuildXPrebidHeader(version.Ver))
 
 	lr := &io.LimitedReader{
 		R: r.Body,
@@ -238,35 +246,38 @@ func (deps *endpointDeps) VideoAuctionEndpoint(w http.ResponseWriter, r *http.Re
 	bidReq.Imp = imps
 	bidReq.ID = "bid_id" //TODO: look at prebid.js
 
-	// Populate any "missing" OpenRTB fields with info from other sources, (e.g. HTTP request headers).
-	deps.setFieldsImplicitly(r, bidReq) // move after merge
+	// all code after this line should use the bidReqWrapper instead of bidReq directly
+	bidReqWrapper := &openrtb_ext.RequestWrapper{BidRequest: bidReq}
 
-	errL = deps.validateRequest(bidReq)
+	// Populate any "missing" OpenRTB fields with info from other sources, (e.g. HTTP request headers).
+	deps.setFieldsImplicitly(r, bidReqWrapper)
+
+	errL = deps.validateRequest(bidReqWrapper, false, false, nil)
 	if errortypes.ContainsFatalError(errL) {
 		handleError(&labels, w, errL, &vo, &debugLog)
 		return
 	}
 
 	ctx := context.Background()
-	timeout := deps.cfg.AuctionTimeouts.LimitAuctionTimeout(time.Duration(bidReq.TMax) * time.Millisecond)
+	timeout := deps.cfg.AuctionTimeouts.LimitAuctionTimeout(time.Duration(bidReqWrapper.TMax) * time.Millisecond)
 	if timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithDeadline(ctx, start.Add(timeout))
 		defer cancel()
 	}
 
-	usersyncs := usersync.ParsePBSCookieFromRequest(r, &(deps.cfg.HostCookie))
-	if bidReq.App != nil {
+	usersyncs := usersync.ParseCookieFromRequest(r, &(deps.cfg.HostCookie))
+	if bidReqWrapper.App != nil {
 		labels.Source = metrics.DemandApp
-		labels.PubID = getAccountID(bidReq.App.Publisher)
-	} else { // both bidReq.App == nil and bidReq.Site != nil are true
+		labels.PubID = getAccountID(bidReqWrapper.App.Publisher)
+	} else { // both bidReqWrapper.App == nil and bidReqWrapper.Site != nil are true
 		labels.Source = metrics.DemandWeb
-		if usersyncs.LiveSyncCount() == 0 {
-			labels.CookieFlag = metrics.CookieFlagNo
-		} else {
+		if usersyncs.HasAnyLiveSyncs() {
 			labels.CookieFlag = metrics.CookieFlagYes
+		} else {
+			labels.CookieFlag = metrics.CookieFlagNo
 		}
-		labels.PubID = getAccountID(bidReq.Site.Publisher)
+		labels.PubID = getAccountID(bidReqWrapper.Site.Publisher)
 	}
 
 	// Look up account now that we have resolved the pubID value
@@ -279,17 +290,18 @@ func (deps *endpointDeps) VideoAuctionEndpoint(w http.ResponseWriter, r *http.Re
 	secGPC := r.Header.Get("Sec-GPC")
 
 	auctionRequest := exchange.AuctionRequest{
-		BidRequest:                 bidReq,
+		BidRequestWrapper:          bidReqWrapper,
 		Account:                    *account,
 		UserSyncs:                  usersyncs,
 		RequestType:                labels.RType,
 		StartTime:                  start,
 		LegacyLabels:               labels,
 		GlobalPrivacyControlHeader: secGPC,
+		PubID:                      labels.PubID,
 	}
 
 	response, err := deps.ex.HoldAuction(ctx, auctionRequest, &debugLog)
-	vo.Request = bidReq
+	vo.Request = bidReqWrapper.BidRequest
 	vo.Response = response
 	if err != nil {
 		errL := []error{err}
@@ -364,6 +376,10 @@ func handleError(labels *metrics.Labels, w http.ResponseWriter, errL []error, vo
 		} else if erVal == errortypes.AcctRequiredErrorCode {
 			status = http.StatusBadRequest
 			labels.RequestStatus = metrics.RequestStatusBadInput
+			break
+		} else if erVal == errortypes.MalformedAcctErrorCode {
+			status = http.StatusInternalServerError
+			labels.RequestStatus = metrics.RequestStatusAccountConfigErr
 			break
 		}
 		errors = fmt.Sprintf("%s %s", errors, er.Error())

@@ -1,6 +1,7 @@
 package openrtb_ext
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -22,6 +23,7 @@ type ExtBidPrebid struct {
 	Video             *ExtBidPrebidVideo  `json:"video,omitempty"`
 	Events            *ExtBidPrebidEvents `json:"events,omitempty"`
 	BidId             string              `json:"bidid,omitempty"`
+	Passthrough       json.RawMessage     `json:"passthrough,omitempty"`
 }
 
 // ExtBidPrebidCache defines the contract for  bidresponse.seatbid.bid[i].ext.prebid.cache
@@ -38,18 +40,21 @@ type ExtBidPrebidCacheBids struct {
 
 // ExtBidPrebidMeta defines the contract for bidresponse.seatbid.bid[i].ext.prebid.meta
 type ExtBidPrebidMeta struct {
-	AdvertiserDomains    []string `json:"advertiserDomains,omitempty"` // or advertiserDomain?
-	AdvertiserID         int      `json:"advertiserId,omitempty"`
-	AdvertiserName       string   `json:"advertiserName,omitempty"`
-	AgencyID             int      `json:"agencyId,omitempty"`
-	AgencyName           string   `json:"agencyName,omitempty"`
-	BrandID              int      `json:"brandId,omitempty"`
-	BrandName            string   `json:"brandName,omitempty"`
-	MediaType            string   `json:"mediaType,omitempty"`
-	NetworkID            int      `json:"networkId,omitempty"`
-	NetworkName          string   `json:"networkName,omitempty"`
-	PrimaryCategoryID    string   `json:"primaryCatId,omitempty"`
-	SecondaryCategoryIDs []string `json:"secondaryCatIds,omitempty"`
+	AdvertiserDomains    []string        `json:"advertiserDomains,omitempty"`
+	AdvertiserID         int             `json:"advertiserId,omitempty"`
+	AdvertiserName       string          `json:"advertiserName,omitempty"`
+	AgencyID             int             `json:"agencyId,omitempty"`
+	AgencyName           string          `json:"agencyName,omitempty"`
+	BrandID              int             `json:"brandId,omitempty"`
+	BrandName            string          `json:"brandName,omitempty"`
+	DemandSource         string          `json:"demandSource,omitempty"`
+	DChain               json.RawMessage `json:"dchain,omitempty"`
+	MediaType            string          `json:"mediaType,omitempty"`
+	NetworkID            int             `json:"networkId,omitempty"`
+	NetworkName          string          `json:"networkName,omitempty"`
+	PrimaryCategoryID    string          `json:"primaryCatId,omitempty"`
+	SecondaryCategoryIDs []string        `json:"secondaryCatIds,omitempty"`
+	AdapterCode          string          `json:"adaptercode,omitempty"`
 }
 
 // ExtBidPrebidVideo defines the contract for bidresponse.seatbid.bid[i].ext.prebid.video
@@ -157,3 +162,17 @@ func min(x, y int) int {
 	}
 	return y
 }
+
+func (key TargetingKey) TruncateKey(maxLength int) string {
+	if maxLength > 0 {
+		return string(key)[:min(len(string(key)), maxLength)]
+	}
+	return string(key)
+}
+
+const (
+	StoredRequestAttributes = "storedrequestattributes"
+	OriginalBidCpmKey       = "origbidcpm"
+	OriginalBidCurKey       = "origbidcur"
+	Passthrough             = "passthrough"
+)

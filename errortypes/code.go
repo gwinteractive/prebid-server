@@ -12,6 +12,7 @@ const (
 	BlacklistedAcctErrorCode
 	AcctRequiredErrorCode
 	NoConversionRateErrorCode
+	MalformedAcctErrorCode
 )
 
 // Defines numeric codes for well-known warnings.
@@ -21,6 +22,7 @@ const (
 	AccountLevelDebugDisabledWarningCode
 	BidderLevelDebugDisabledWarningCode
 	DisabledCurrencyConversionWarningCode
+	AlternateBidderCodeWarningCode
 )
 
 // Coder provides an error or warning code with severity.
