@@ -9,7 +9,7 @@ steps:
           - '--network'
           - host
           - '-t'
-          - 'eu.gcr.io/$PROJECT_ID/prebid-server:latest'
+          - 'europe-docker.pkg.dev/$PROJECT_ID/custom/prebid-server:latest'
           - .
     - name: gcr.io/cloud-builders/docker
       args:
@@ -21,7 +21,7 @@ steps:
           - '--network'
           - host
           - '-t'
-          - 'eu.gcr.io/$PROJECT_ID/prebid-server:$TAG_NAME'
+          - 'europe-docker.pkg.dev/$PROJECT_ID/custom/prebid-server:$TAG_NAME'
           - .
 images:
-    - eu.gcr.io/$PROJECT_ID/prebid-server
+    - europe-docker.pkg.dev/$PROJECT_ID/custom/prebid-server
